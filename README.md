@@ -112,8 +112,7 @@ not currently be fully reversable without manual intervention.**
 
    **Editable (`-e`) installations are not currently supported**
 
-7. Install `meerkat_moon.py`, `RX3Name`, `GFZRNX`, and `C2RNX`, and place them in the correct locations.  
-   More information on this step will be added soon.
+7. Install `meerkat_moon.py`, `RX3Name`, `GFZRNX`, and `C2RNX`, and place them in the correct locations. Update CDDIS .netrc in home directory if needed. More information on this step will be added soon.
 
 8. Set required runtime environment variables for ALBUS execution:
    ```bash
@@ -132,6 +131,7 @@ not currently be fully reversable without manual intervention.**
    ```
 
 **Note that the user still needs to compile and install RINEXCMP and have gfzrnx and RX3name in the PATH before running**
+
 
 
 
