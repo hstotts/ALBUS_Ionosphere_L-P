@@ -1,5 +1,8 @@
 # python venv 
 albus_env
 
-#build specific
+# build specific
 build
+
+# macOS
+.DS_Store
