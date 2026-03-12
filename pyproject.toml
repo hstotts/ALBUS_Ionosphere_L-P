@@ -1,0 +1,58 @@
+[build-system]
+requires = [
+    "scikit-build-core",
+    "cmake",
+    "numpy==1.21"
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "AlbusIonosphere"
+version = "1.0.0"
+description = "ALBUS ionospheric RM prediction package"
+authors = [{ name = "James M Anderson" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.6"
+
+dependencies = [
+    "numpy==1.26.4",
+    "astropy",
+    "ephem",      
+    "requests",
+    "pycurl",
+    "matplotlib"
+]
+
+[tool.scikit-build]
+cmake.version = ">=3.10"
+build.verbose = true
+build-dir = "build"
+wheel.packages = ["AlbusIonosphere"]
+sdist.include = [
+    "CMakeLists.txt",
+    "AlbusIonosphere.cxx",
+    "ALBUS_ionosphere"
+]
+sdist.exclude = [
+    "build",
+    "acceptance_tests",
+    "Dockerfile",
+    "Jenkinsfile.sh",
+    "RNXCMP_4.1.0_src.tar.gz",
+    "UPDATING_SPACE_WEATHER",
+    "twillis_ALBUS_paper.pdf",
+    ".gitignore",
+    ".dockerignore",
+    "CODE_data_products_2.pdf",
+    "CODE_data_products.pdf",
+    "IMF24_request.png",
+    "00_iri2012.tar",
+    "iri.tar.gz"
+]
+
+[tool.scikit-build.cmake.define]
+MAJOR_VERSION = "1"
+MINOR_VERSION = "0"
+
+
