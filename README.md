@@ -59,30 +59,80 @@ A somewhat more detained description of the software is given in
 the, as yet, unpublished paper twillis_ALBUS_paper.pdf available in 
 this directory.
 
-## Installation
+## Installation on MacOS - adapted from ratt-ru
 **We strongly recommend using a clean python virtual environment for the installation process
 and advise against installing this package into system folders as the installation process may
 not currently be fully reversable without manual intervention.**
 
-1. Clone this branch (if you haven’t already):
+***Installation on MacOS requires MacPorts or a similar package for the necessary compilers. Full MacPorts install list will be available soon.***
+
+1. Clone this branch (download the repository locally):
    ```bash
-   git clone git@github.com:ratt-ru/ALBUS_ionosphere.git
+   git clone git@github.com:hstotts/ALBUS_Ionosphere_L-P.git
+   ```
 
 2. Navigate into the project directory:
    ```bash
-   cd ALBUS_ionosphere
+   cd ALBUS_Ionosphere_L-P
+   ```
 
-3. Create and activate Python virtual environment 
+3. Create and activate a Python virtual environment (isolates project dependencies):
    ```bash
    python -m venv albus_env
-   source albus_env/bin/activate    
+   source albus_env/bin/activate
+   ```
 
-4. Install the package:
+4. Update Python packaging tools and install required Python dependencies:
    ```bash
+   pip install --upgrade pip setuptools wheel build
+   pip install numpy astropy matplotlib ephem pycurl requests
+   ```
+
+5. Configure compilers and library paths from MacPorts (required for building native code and linking OpenBLAS):
+   ```bash
+   export CC=/opt/local/bin/gcc-mp-11
+   export CXX=/opt/local/bin/g++-mp-11
+   export FC=/opt/local/bin/gfortran-mp-11
+   export CPATH=/opt/local/include:/opt/local/include/openblas
+   export LIBRARY_PATH=/opt/local/lib
+   export DYLD_LIBRARY_PATH=/opt/local/lib
+   ```
+
+6. Build and install the ALBUS package with CMake configuration for OpenBLAS and Fortran support:
+   ```bash
+   CMAKE_ARGS="\
+   -DCMAKE_BUILD_TYPE=Release \
+   -DCMAKE_Fortran_FLAGS='-std=legacy -fallow-argument-mismatch' \
+   -DCMAKE_INCLUDE_PATH=/opt/local/include;/opt/local/include/openblas \
+   -DCMAKE_LIBRARY_PATH=/opt/local/lib \
+   -DLAPACKE_LIB=/opt/local/lib/libopenblas.dylib \
+   " \
    pip install .
-**Editable (-e) installations are not currently supported**
+   ```
+
+   **Editable (`-e`) installations are not currently supported**
+
+7. Install `meerkat_moon.py`, `RX3Name`, `GFZRNX`, and `C2RNX`, and place them in the correct locations.  
+   More information on this step will be added soon.
+
+8. Set required runtime environment variables for ALBUS execution:
+   ```bash
+   export PATH="$HOME/ALBUS_LOCAL_PIP:$PATH"
+   export PYTHONPATH="$HOME/ALBUS_LOCAL_PIP:$PYTHONPATH"
+   export ALBUS_TESTCASE_OUTPUT="$HOME/ALBUS_LOCAL_PIP/albus_waterhole"
+   ```
+
+9. Run the program with the test RINEX file and station configuration:
+   ```bash
+   MPLBACKEND=agg \
+   ALBUS_LOCAL_RINEX=$HOME/ALBUS_LOCAL_PIP/albus_waterhole/suth3650.25o \
+   ALBUS_LOCAL_STATION=SUTH \
+   ALBUS_USE_EXTERNAL_DCB=0 \
+   python $HOME/ALBUS_LOCAL_PIP/albus_waterhole/meerkat_moon.py
+   ```
 
 **Note that the user still needs to compile and install RINEXCMP and have gfzrnx and RX3name in the PATH before running**
+
 
 
 
