@@ -1,8 +1,13 @@
-# python venv 
+# python 
 albus_env
+__pycache__/
+*.pyc
 
 # build specific
 build
 
 # macOS
 .DS_Store
+
+#vs code
+.vscode/
