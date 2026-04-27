@@ -68,7 +68,7 @@ not currently be fully reversable without manual intervention.**
 
 1. Clone this branch (download the repository locally):
    ```bash
-   git clone git@github.com:hstotts/ALBUS_Ionosphere_L-P.git
+   git clone https://github.com/hstotts/ALBUS_Ionosphere_L-P.git
    ```
 
 2. Navigate into the project directory:
