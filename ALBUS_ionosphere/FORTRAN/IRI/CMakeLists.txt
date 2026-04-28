@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(JMA_IRI LANGUAGES C CXX Fortran)
 
-set(CMAKE_Fortran_FLAGS "-O2")
+set(CMAKE_Fortran_FLAGS "-O2 -std=legacy -fallow-argument-mismatch")
 set(CMAKE_C_FLAGS "-O2")
 set(CMAKE_CXX_FLAGS "-O2")
 
@@ -35,7 +35,6 @@ set(NEOBJS
     irisubne.f
     iritecne.f
 )
-add_compile_options(--std=legacy)
 
 add_executable(iritestne iritestne.f ${OBJS} ${NEOBJS})
 target_link_libraries(iritestne ${LIBRARIES})

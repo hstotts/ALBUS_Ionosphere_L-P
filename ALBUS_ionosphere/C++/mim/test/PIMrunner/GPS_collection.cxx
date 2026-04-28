@@ -1,3 +1,5 @@
+#include <cmath>
+#include <cmath>
 // GPS_collection.cxx
 // code for dealing with ionosphere predictions from GPS data
 //_HIST  DATE NAME PLACE INFO
@@ -1259,7 +1261,7 @@ GPS_collection_return GPS_collection::get_multiple_receiver_2D_MIM_fit(
                                                             Receiver_List[r],
                                                             MJD,
                                                             satellite, t, s);
-                            if(!finite(observations_2D[obs].model_VTEC)) {
+                            if(!std::isfinite(observations_2D[obs].model_VTEC)) {
                                 fprintf(stderr,"Warning: got unreasonable total electron content, setting to zero and zero weight.\n");
                                 exit(1);
                             }
@@ -1472,7 +1474,7 @@ GPS_collection_return GPS_collection::get_multiple_receiver_2D_MIM_fit(
             &model_STEC_err,
             &model_SRM,
             telescope.Elevation());
-        if(!finite(model_STEC)) {
+        if(!std::isfinite(model_STEC)) {
             fprintf(stderr,"Warning: got unreasonable total electron content, setting to zero and zero weight.\n");
             exit(1);
         }
@@ -1798,7 +1800,7 @@ GPS_collection_return GPS_collection::get_multiple_receiver_3D_MIM_fit(
                                                             Receiver_List[r],
                                                             MJD,
                                                             satellite, t, s);
-                            if(!finite(observations_3D[obs].model_STEC)) {
+                            if(!std::isfinite(observations_3D[obs].model_STEC)) {
                                 fprintf(stderr,"Warning: got unreasonable total electron content, setting to zero and zero weight.\n");
                                 exit(1);
                             }
@@ -2058,7 +2060,7 @@ GPS_collection_return GPS_collection::get_multiple_receiver_3D_MIM_fit(
             &model_STEC_err,
             &model_SRM,
             telescope.Elevation());
-        if(!finite(model_STEC)) {
+        if(!std::isfinite(model_STEC)) {
             fprintf(stderr,"Warning: got unreasonable total electron content, setting to zero and zero weight.\n");
             exit(1);
         }
@@ -2384,7 +2386,7 @@ GPS_collection_return GPS_collection::get_multiple_receiver_3D_MIM_track_fit(
                                                     Receiver_List[r],
                                                     MJD,
                                                     satellite, t, s);
-                    if(!finite(observations_3D[obs].model_STEC)) {
+                    if(!std::isfinite(observations_3D[obs].model_STEC)) {
                         fprintf(stderr,"Warning: got unreasonable total electron content, setting to zero and zero weight.\n");
                         exit(1);
                     }
@@ -2603,7 +2605,7 @@ GPS_collection_return GPS_collection::get_multiple_receiver_3D_MIM_track_fit(
             &model_STEC_err,
             &model_SRM,
             telescope.Elevation());
-        if(!finite(model_STEC)) {
+        if(!std::isfinite(model_STEC)) {
             fprintf(stderr,"Warning: got unreasonable total electron content, setting to zero and zero weight.\n");
             exit(1);
         }

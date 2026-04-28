@@ -6,7 +6,8 @@
 // Python.h needs to be first.  Then I can include the system stuff
 #include <Python.h>
 #include <numpy/arrayobject.h>
-#include <numpy/noprefix.h>
+typedef npy_int16 Int16;
+// #include <numpy/noprefix.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
@@ -17,7 +18,7 @@ void printIntArray(char label[], int *ptr, size_t start_length, size_t length)
     //for statment to print values using array             
     printf("%s ", label);        
     size_t i = 0;
-    for( ; i < start_length; ++i )      
+    for( ; i < start_length; ++i )      s
       printf(" %d", ptr[i]);        
     printf(" ... ");        
     for(i=length-start_length ; i < length; ++i )      
@@ -489,7 +490,7 @@ PyObject* cal_observations_set_times(PyObject* self, PyObject* args)
     std::cout<<"N_TIMES"<<N_TIMES<<std::endl;
     std::cout<<"MJD_object"<<MJD_object<<std::endl;
     std::cout<<"calling PyArray_FROM_OTF"<<std::endl;
-    MJD_array = (PyArrayObject*) PyArray_FROM_OTF(MJD_object, NPY_DOUBLE, NPY_IN_ARRAY);
+    MJD_array = (PyArrayObject*) PyArray_FROM_OTF(MJD_object, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
     std::cout<<"called PyArray_FROM_OTF"<<std::endl;
     if (MJD_array == NULL){
         PyErr_Format(PyExc_RuntimeError, "Cannot make MJD_array");
@@ -539,7 +540,7 @@ PyObject* cal_observations_set_sat_pos(PyObject* self, PyObject* args)
         PyErr_Format(PyExc_RuntimeError, "Nonpositive array sizes!");
         goto fail;
     }
-    SAT_array = (PyArrayObject*) PyArray_FROM_OTF(SAT_object, NPY_DOUBLE, NPY_IN_ARRAY);
+    SAT_array = (PyArrayObject*) PyArray_FROM_OTF(SAT_object, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
     if(!SAT_array) {
         PyErr_Format(PyExc_RuntimeError, "Cannot make SAT_array");
         goto fail;
@@ -617,27 +618,27 @@ PyObject* cal_observations_set_cal_obs(PyObject* self, PyObject* args)
         PyErr_Format(PyExc_RuntimeError, "Nonpositive array sizes!");
         goto fail;
     }
-    pos_array = (PyArrayObject*) PyArray_FROM_OTF(pos_object, NPY_DOUBLE, NPY_IN_ARRAY);
+    pos_array = (PyArrayObject*) PyArray_FROM_OTF(pos_object, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
     if(!pos_array){PyErr_Format(PyExc_RuntimeError, "Cannot make pos array");
         goto fail;
     }
-    sat_array = (PyArrayObject*) PyArray_FROM_OTF(sat_object, NPY_INT16, NPY_IN_ARRAY);
+    sat_array = (PyArrayObject*) PyArray_FROM_OTF(sat_object, NPY_INT16, NPY_ARRAY_IN_ARRAY);
     if(!sat_array){PyErr_Format(PyExc_RuntimeError, "Cannot make sat array");
         goto fail;
     }
-    track_array = (PyArrayObject*) PyArray_FROM_OTF(track_object, NPY_INT16, NPY_IN_ARRAY);
+    track_array = (PyArrayObject*) PyArray_FROM_OTF(track_object, NPY_INT16, NPY_ARRAY_IN_ARRAY);
    if(!track_array){PyErr_Format(PyExc_RuntimeError, "Cannot make track array");
         goto fail;
     }
-    stec_array = (PyArrayObject*) PyArray_FROM_OTF(stec_object, NPY_DOUBLE, NPY_IN_ARRAY);
+    stec_array = (PyArrayObject*) PyArray_FROM_OTF(stec_object, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
     if(!stec_array){PyErr_Format(PyExc_RuntimeError, "Cannot make stec array");
         goto fail;
     }
-    sigma_array = (PyArrayObject*) PyArray_FROM_OTF(sigma_object, NPY_DOUBLE, NPY_IN_ARRAY);
+    sigma_array = (PyArrayObject*) PyArray_FROM_OTF(sigma_object, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
     if(!sigma_array){PyErr_Format(PyExc_RuntimeError, "Cannot make sigma array");
         goto fail;
     }
-    bias_array = (PyArrayObject*) PyArray_FROM_OTF(bias_object, NPY_INT, NPY_IN_ARRAY);
+    bias_array = (PyArrayObject*) PyArray_FROM_OTF(bias_object, NPY_INT, NPY_ARRAY_IN_ARRAY);
     if(!bias_array) {
         PyErr_Format(PyExc_RuntimeError, "Cannot make bias arrays");
         goto fail;
@@ -768,7 +769,7 @@ PyMODINIT_FUNC initAlbusIonosphere(void)
     return;
 }
 
-#else:
+#else
 //Python3 interface
 PyDoc_STRVAR(module_doc,
 "Interface to c++ ionosphere stuff.");
