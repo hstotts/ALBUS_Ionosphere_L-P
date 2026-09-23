@@ -11,6 +11,7 @@ set(SRCS
   MS_Iono_agw_azel_par.py
   Albus_RINEX.py
   Albus_RINEX_2.py
+  station_dcb_override.py
   GPS_stations.py
   Albus_iono_object.py
   MS_Iono_functions.py
@@ -23,6 +24,7 @@ set(MODULES
   MS_Iono_agw_azel_par
   Albus_RINEX
   Albus_RINEX_2
+  station_dcb_override
   GPS_stations
   Albus_iono_object
   MS_Iono_functions
@@ -30,6 +32,11 @@ set(MODULES
 
 set(PROG Albus_RINEX_download.py)
 set(DATA gps_pos_default.snx)
+
+# Regression tests stay in the source release and are intentionally not
+# installed as runtime modules:
+#   test_station_dcb_override.py
+#   test_rinex2_fixed_width.py
 
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
@@ -63,5 +70,3 @@ install(CODE "execute_process(COMMAND chmod +x ${PYTHON_SITE_PACKAGES}/bin/Albus
 
 
 #string(REPLACE ";" " " MODULES_STR "${MODULES}")
-
-

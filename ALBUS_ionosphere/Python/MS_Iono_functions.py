@@ -1617,10 +1617,11 @@ def process_ionosphere(MSname="",
       else:
         out_file = 'albus_report_parallel_' + processing_option + '_' + object 
 
-    if os.path.exists(out_file):
-      os.remove(out_file)
-    log = open(os.path.join(os.environ.get("ALBUS_TESTCASE_OUTPUT", "."), out_file), 'a')
-    #log = open(out_file, 'a')
+    out_path = os.path.join(os.environ.get("ALBUS_TESTCASE_OUTPUT", "."), out_file)
+    if os.path.exists(out_path):
+      os.remove(out_path)
+    log = open(out_path, 'w')
+    #log = open(out_file, 'w')
 
 # setting num_processors == 1 seems to work better for getting GPS data from
 # Geosciences Australia. Anyway most time for Australia data is spent at the

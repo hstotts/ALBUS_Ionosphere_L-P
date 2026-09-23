@@ -11,13 +11,21 @@ global DEBUG_SET
 DEBUG_SET = False
 
 import sys
-import pycurl
-import requests
 import os
+import urllib.request
+import urllib.error
+try:
+  import requests
+except ImportError:
+  requests = None
+try:
+  import pycurl
+except ImportError:
+  pycurl = None
 
 # set one of these 2 options to be True
 HAS_FTPLIB = False
-HAS_PYCURL = True       # seems a bit faster
+HAS_PYCURL = pycurl is not None       # seems a bit faster
 
 def main():
     if DEBUG_SET:
@@ -28,31 +36,54 @@ def main():
     if DEBUG_SET:
       print('Albus_RINEX_download system parameters', sys.argv)
 
-    if sys.argv[1].find('cddis')> -1:
+    if sys.argv[1].startswith(('http://', 'https://')):
        url =  sys.argv[1]
        filename = sys.argv[2]
-       r = requests.get(url)
-# Opens a local file of same name as remote file for writing to
-       with open(filename, 'wb') as fd:
-          for chunk in r.iter_content(chunk_size=1000):
-             fd.write(chunk)
-       fd.close()
-       # is this a data file or stupid cddis html file returned when there's not actual data
+       timeout = int(sys.argv[3])
        try:
-         text= open(filename, 'r').readlines()
+          if requests is not None:
+             r = requests.get(url, stream=True, timeout=timeout, allow_redirects=True)
+             if r.status_code >= 400:
+                print('HTTP failed to get data for ', sys.argv[1], ' status ', r.status_code)
+                sys.exit(-3)
+             # Opens a local file of same name as remote file for writing to
+             with open(filename, 'wb') as fd:
+                for chunk in r.iter_content(chunk_size=1000):
+                   if chunk:
+                      fd.write(chunk)
+          else:
+             req = urllib.request.Request(url, headers={'User-Agent': 'ALBUS_RINEX_download.py'})
+             with urllib.request.urlopen(req, timeout=timeout) as r:
+                with open(filename, 'wb') as fd:
+                   while True:
+                      chunk = r.read(1000)
+                      if not chunk:
+                         break
+                      fd.write(chunk)
+       except urllib.error.HTTPError as e:
+          print('HTTP failed to get data for ', sys.argv[1], ' status ', e.code)
+          sys.exit(-3)
+       except Exception as e:
+          print('HTTP failed to get data for ', sys.argv[1], ' error ', e)
+          sys.exit(-3)
+       fd.close()
+       # is this a data file or an HTML error page returned when there is no data
+       try:
+         text= open(filename, 'rb').read(512).lower()
          if DEBUG_SET:
-           print('text[0]', text[0])
-           print('find location', text[0].find('html'))
-         if text[0].find('html') >= 0: # its a garbage html file and not a data file
+           print('header bytes', text[:80])
+           print('html marker location', text.find(b'html'))
+         if text.find(b'html') >= 0:
            os.remove(filename)
            if DEBUG_SET:
-             print('Failed to get data from CDDIS for ', sys.argv[1], ' file probably not found!!')
+             print('Failed to get data from HTTP for ', sys.argv[1], ' file probably not found!!')
            sys.exit(-3)
        except:
          file_stats = os.stat(filename)
          if DEBUG_SET:
-           print('CDDIS returned a binary file with Byte size', file_stats.st_size )
+           print('HTTP returned a binary file with Byte size', file_stats.st_size )
          sys.exit(0)
+       sys.exit(0)
 
     if sys.argv[1].find('sftp')> -1:
       use_pysftp = True
@@ -99,6 +130,7 @@ def main():
           with open(sys.argv[2], 'wb') as f:
                c = pycurl.Curl()
                c.setopt(c.URL, sys.argv[1])
+               c.setopt(pycurl.FOLLOWLOCATION, True)
                c.setopt(pycurl.CONNECTTIMEOUT, 120)
                c.setopt(pycurl.TIMEOUT, timeout)
                c.setopt(c.WRITEDATA, f)

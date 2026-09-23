@@ -5,7 +5,7 @@
 # 2023 Mar  4  AGW  --updates for igs long product file names
 
 global DEBUG_SET
-DEBUG_SET = True
+DEBUG_SET = False
 
 ################################################################################
 # some import commands  The User should not need to change this.
@@ -30,8 +30,6 @@ import warnings
 import math
 import time as systime
 
-import re
-
 ################################################################################
 # JMA's ionosphere stuff
 import AlbusIonosphere
@@ -39,18 +37,7 @@ import Albus_Coordinates
 import Albus_RINEX
 import jma_tools
 import GPS_stations
-
-
-######################## SANITY CHECKS #######################
-print("[ALBUS] Albus_RINEX_2 loaded from:", __file__)
-print("[ALBUS] CWD:", os.getcwd())
-print("UID:", os.getuid())
-print("EUID:", os.geteuid())
-print("HOME env:", os.environ.get("HOME"))
-print("expanduser(~):", os.path.expanduser("~"))
-print("netrc path:", os.path.expanduser("~/.netrc"))
-print("netrc exists:", os.path.isfile(os.path.expanduser("~/.netrc")))
-print("cwd:", os.getcwd())
+import station_dcb_override
 
 ################################################################################
 # Global variables
@@ -224,19 +211,6 @@ OUTPUTS: None
                 sat_pos += 1
     return
 
-################################################################################
-################### Septentrio Processing Functions ############################
-################################################################################
-
-_FLOAT_RE = re.compile(r'^[\+\-]?\d+(\.\d*)?([EeDd][\+\-]?\d+)?$')
-
-def _is_float_token(tok: str) -> bool:
-    tok = tok.strip()
-    if not tok:
-        return False
-    tok = tok.replace('D', 'E').replace('d', 'e')
-    return bool(_FLOAT_RE.match(tok))
-
 def _parse_fixed_width_obs(raw: str, num_data: int, obs_info, obs_info_code,
                            time_index, sat_index, obs_data,
                            LOSS_OF_LOCK, STRENGTH_1, STRENGTH_2,
@@ -283,70 +257,6 @@ def _parse_fixed_width_obs(raw: str, num_data: int, obs_info, obs_info_code,
                     obs_data[time_index, sat_index, STRENGTH_1] = signal_strength_flag
                 elif freq == 2:
                     obs_data[time_index, sat_index, STRENGTH_2] = signal_strength_flag
-            except Exception:
-                pass
-
-
-def _parse_sept_token_obs(raw_lines, num_data, obs_info, obs_info_code,
-                          time_index, sat_index, obs_data,
-                          LOSS_OF_LOCK, STRENGTH_1, STRENGTH_2,
-                          S1_POS, S2_POS, P1_POS, BAD_DATA_CODE):
-    """
-    Septentrio-style: tokens like "22429600.520 7 117868482.87207 ..."
-    We treat the integer token right after a float as a flag.
-    """
-    toks = []
-    for ln in raw_lines:
-        toks.extend(ln.strip().split())
-
-    tok_i = 0
-    for obs_count in range(num_data):
-        # find next float token
-        while tok_i < len(toks) and not _is_float_token(toks[tok_i]):
-            tok_i += 1
-        if tok_i >= len(toks):
-            break
-
-        vtok = toks[tok_i]
-        tok_i += 1
-
-        # optional following flag token
-        flag = None
-        if tok_i < len(toks):
-            ftok = toks[tok_i]
-            if ftok.isdigit() and len(ftok) <= 2:
-                flag = int(ftok)
-                tok_i += 1
-
-        if obs_info[obs_count] is None:
-            continue
-
-        try:
-            v = float(vtok.replace('D', 'E').replace('d', 'e'))
-        except ValueError:
-            if obs_info[obs_count] not in (S1_POS, S2_POS, P1_POS):
-                obs_data[time_index, sat_index, LOSS_OF_LOCK] = 1
-            continue
-
-        if v == 0.0:
-            obs_data[time_index, sat_index, obs_info[obs_count]] = BAD_DATA_CODE
-            if obs_info[obs_count] not in (S1_POS, S2_POS, P1_POS):
-                obs_data[time_index, sat_index, LOSS_OF_LOCK] = 1
-        else:
-            obs_data[time_index, sat_index, obs_info[obs_count]] = v
-
-        # conservative: any nonzero flag => mark potential lock issue
-        if flag is not None and flag != 0 and obs_info[obs_count] not in (S1_POS, S2_POS, P1_POS):
-            obs_data[time_index, sat_index, LOSS_OF_LOCK] = 1
-
-        # also try to store as strength when it looks like a freq we track
-        if flag is not None:
-            try:
-                freq = int(obs_info_code[obs_count][1])
-                if freq == 1:
-                    obs_data[time_index, sat_index, STRENGTH_1] = flag
-                elif freq == 2:
-                    obs_data[time_index, sat_index, STRENGTH_2] = flag
             except Exception:
                 pass
 
@@ -432,14 +342,6 @@ XYZ        O  Cartesian station position in Earth centered coodriantes, in m
         XYZ = None
         antenna_offset = None
         pending_apply_antenna_offset = False
-
-        # File-type hint for obs parsing
-        is_septentrio = False
-
-        # Header satellite-count (RINEX2 "# OF SATELLITES")
-        header_num_sats = None
-
-
         try:
             fp = open(filename, "rb")
         except IOError:
@@ -458,20 +360,6 @@ XYZ        O  Cartesian station position in Earth centered coodriantes, in m
             line = ''.join(map(chr, map(lambda x: x if x < 127 else ord(' '), line)))
             if(line[60:73] == "END OF HEADER"):
                 break
-
-            # Septentrio hint: marker name/comment often contains "SEPT"/"Septentrio"
-            elif(line[60:71] == "MARKER NAME"):
-                if "SEPT" in line[0:60] or "Sept" in line[0:60] or "sept" in line[0:60]:
-                    is_septentrio = True
-            elif(line[60:67] == "COMMENT"):
-                if "Septentrio" in line or "SEPT" in line:
-                    is_septentrio = True
-            elif(line[60:75] == "# OF SATELLITES"):
-                # RINEX2 header line; typically gives total distinct PRNs in file
-                try:
-                    header_num_sats = int(line[0:6])
-                except Exception:
-                    header_num_sats = None
 
             # Approx Position XYZ Block
             elif(line[60:79] == "APPROX POSITION XYZ"):
@@ -748,24 +636,11 @@ XYZ        O  Cartesian station position in Earth centered coodriantes, in m
                 if(time_index < 0):
                     time_index = num_times
             
-            #num_sat = int(line[29:32])
-            #if(num_sat > max_sat):
-                #if(num_times > 0):
-                    #raise Albus_RINEX.RINEX_Data_Barf("Function called with too little satellite space")
-                #max_sat = num_sat
-
             num_sat = int(line[29:32])
-            # Ensure max_sat is large enough for header-declared satellite IDs.
-            # This keeps compatibility with older behavior where C++ expects
-            # Sat_small values to be < max_sat.
-            need = num_sat
-            if header_num_sats is not None and header_num_sats > 0:
-                need = max(need, header_num_sats + 1)  # +1 safety margin
-
-            if(need > max_sat):
+            if(num_sat > max_sat):
                 if(num_times > 0):
                     raise Albus_RINEX.RINEX_Data_Barf("Function called with too little satellite space")
-                max_sat = need
+                max_sat = num_sat
 
             line_pos = 32-3
             sat_count = 0
@@ -808,50 +683,25 @@ XYZ        O  Cartesian station position in Earth centered coodriantes, in m
                    line = fp.readline()
                    line = ''.join(map(chr, map(lambda x: x if x < 127 else ord(' '), line)))
             else:
-                #####SECTION CHANGE
                 for sat in range(num_sat):
-                    # Read the full block for this satellite (RINEX2 uses continuation lines)
+                    # RINEX 2 observation records always use 16-character
+                    # fields, including files produced by Septentrio receivers.
                     raw_lines = []
                     for _ in range(lines_per_sat):
                         ln = fp.readline()
                         ln = ''.join(map(chr, map(lambda x: x if x < 127 else ord(' '), ln)))
                         raw_lines.append(ln.rstrip('\n'))
 
-                    # Join lines in a way that preserves fixed-width alignment if present
+                    # Each continuation line contains five fixed-width fields.
+                    # Pad the final short line so blank observations retain
+                    # their positions.
                     raw_join = ''.join([rl.ljust(80) for rl in raw_lines])
-
-                    # Decide parsing mode:
-                    # - Septentrio output is commonly token-style with per-value flags
-                    # - Classic RINEX2 uses strict 16-char fields
-                    if is_septentrio:
-                        looks_fixed = False
-                    else:
-                        # Conservative fixed-width check: must have enough characters for N fields
-                        looks_fixed = (len(raw_join) >= 16 * num_data)
-
-                    if looks_fixed:
-                        _parse_fixed_width_obs(
-                            raw_join, num_data, obs_info, obs_info_code,
-                            time_index, sat, obs_data,
-                            LOSS_OF_LOCK, STRENGTH_1, STRENGTH_2,
-                            S1_POS, S2_POS, P1_POS, BAD_DATA_CODE
-                        )
-                    else:
-                        _parse_sept_token_obs(
-                            raw_lines, num_data, obs_info, obs_info_code,
-                            time_index, sat, obs_data,
-                            LOSS_OF_LOCK, STRENGTH_1, STRENGTH_2,
-                            S1_POS, S2_POS, P1_POS, BAD_DATA_CODE
-                        )
-
-
-                    # IMPORTANT: do NOT wipe the entire satellite record just because LOSS_OF_LOCK is set.
-                    # If you *want* to discard sats with lock issues, use == 1 explicitly:
-                    #if obs_data[time_index, sat, LOSS_OF_LOCK] == 1:
-                    #    obs_data[time_index, sat, :] = BAD_DATA_CODE
-                
-                ###### End section change
-
+                    _parse_fixed_width_obs(
+                        raw_join, num_data, obs_info, obs_info_code,
+                        time_index, sat, obs_data,
+                        LOSS_OF_LOCK, STRENGTH_1, STRENGTH_2,
+                        S1_POS, S2_POS, P1_POS, BAD_DATA_CODE
+                    )
 
         if((num_times > 0) and (interval_undersampled)):
             fix_RINEX_obs_file_undersampling(interval_undersampled,
@@ -2159,7 +2009,7 @@ def DCB_bias_correction(MJD,
                         bias_IONEX,
                         bias_CODE_monthly,
                         bias_CODE_C1_monthly,
-                        raise_bias_error=1
+                        raise_bias_error=0
                         ):
     """DCB bias corrections for RINEX data read in with JMA's RINEX stuff
 
@@ -2312,17 +2162,14 @@ raise_bias_error           I  reject data with no bias correction 0 No, else yes
     sta_bias_valid = np.zeros((MAX_POSSIBLE_SATELLITES//100),dtype='int32')+1
     if (bias_in_dicts(station_code, bias_IONEX[MJD_MID][1],bias_CODE_monthly[MJD_MID][1]) is None):
         sta_bias_valid[0] = 0
-        if DEBUG_SET and raise_bias_error:
-          print ( '******************** rejecting data with no bias corection!!! ********')
-          raise Albus_RINEX.RINEX_Data_Barf("Station '%s' has no bias correction"%station_code)
+        if raise_bias_error:
+            if DEBUG_SET:
+                print ( '******************** rejecting data with no bias corection!!! ********')
+            raise Albus_RINEX.RINEX_Data_Barf("Station '%s' has no bias correction"%station_code)
     if (bias_in_dicts(station_code + '_r', bias_IONEX[MJD_MID][1],bias_CODE_monthly[MJD_MID][1]) is None):
         sta_bias_valid[1] = 0
     if (bias_in_dicts(station_code + '_e', bias_IONEX[MJD_MID][1],bias_CODE_monthly[MJD_MID][1]) is None):
         sta_bias_valid[2] = 0
-
-        print(f"[DCB] MJD {MJD_MID} | Station {station_code} | " 
-              f"GPS bias found: {sta_bias_valid[0]}")
-        
     return sta_bias_valid
 
 
@@ -2332,7 +2179,7 @@ raise_bias_error           I  reject data with no bias correction 0 No, else yes
 def estimate_and_apply_local_code_bias(MJD, Sat_array, obs_data, station_code,
                                        min_samples=50):
     """
-    Fallback bias correction using ONLY the local RINEX data (no IONEX/CODE DCB).
+    Experimental relative code-to-carrier leveling using local RINEX data.
 
     Estimates a constant offset per GPS satellite by aligning:
         P4 = (P2 - P1_or_C1)      [meters]
@@ -2340,11 +2187,13 @@ def estimate_and_apply_local_code_bias(MJD, Sat_array, obs_data, station_code,
         L4 = (L1*λ1 - L2*λ2)      [meters]
     using a robust median over the day.
 
-    This removes the combined constant (receiver+satellite+phase ambiguities) per arc.
-    It is sufficient for single-station STEC time-series de-biasing.
+    This removes a combined receiver/satellite/phase-ambiguity constant. It is
+    not an absolute receiver DCB on the CODE datum and must not be reported as
+    one. The current implementation uses one median per satellite/day; callers
+    needing cycle-slip-safe leveling should split the data into phase arcs.
 
     Returns:
-        bias_sec_by_sat (dict): {sat_id: bias_seconds_applied_to_P2}
+        bias_sec_by_sat (dict): {sat_id: leveling_seconds_applied_to_P2}
     """
     C1_pos = _DATA_POS['C1']
     P1_pos = _DATA_POS['P1']
@@ -3744,7 +3593,7 @@ def get_station_base_observations(MJD_start,
                                   station_code,
                                   output_directory=".",
                                   overwrite=0,
-                                  raise_bias_error=1,
+                                  raise_bias_error=0,
                                   local_rinex_obs_file=None,
                                   use_external_dcb_files=1,
                                   estimate_local_dcb_if_missing=0
@@ -3764,9 +3613,13 @@ def get_station_base_observations(MJD_start,
     MJD_start = int(MJD_start) # int truncates!
     MJD_end = int(MJD_end) + 1
 
-    # --- NEW: if a local RINEX obs file is provided, process ONLY that file/day
+    # One local observation file represents one requested MJD day. Refuse a
+    # wider range rather than silently truncating it.
     if local_rinex_obs_file is not None:
-        MJD_end = MJD_start + 1
+        if MJD_end != MJD_start + 1:
+            raise Albus_RINEX.RINEX_Data_Barf(
+                "local_rinex_obs_file supports one MJD day per call"
+            )
 
     if use_external_dcb_files:
         for m in range(MJD_start-1, MJD_end+1):
@@ -3836,7 +3689,16 @@ def get_station_base_observations(MJD_start,
     else:
         # No external DCB products; we will estimate local biases from the RINEX itself.
         pass
-        
+
+    # Locally calibrated receiver DCBs (e.g. MK01) — inert unless the
+    # ALBUS_STATION_DCB_CSV environment variable is set.  Values are in the
+    # CODE P1-P2 datum, so downstream DCB_bias_correction needs no changes.
+    if use_external_dcb_files:
+        station_dcb_override.apply(
+            get_station_base_observations.bias_IONEX,
+            get_station_base_observations.bias_CODE_monthly,
+            MJD_start - 1, MJD_end)
+
     # Now for the observation data
     sta_MJD_list = []
     Sat_array_list = []
@@ -3886,40 +3748,6 @@ def get_station_base_observations(MJD_start,
         # Ok, now read in the data
         MJD, Sat_array, obs_data,time_offset,XYZ = \
              read_RINEX_obs_file(data_file, m, One_Day_Limit=1)
-       
-        # ---- DEBUG CHECK ----
-        print("epochs:", len(MJD))
-        print("any sats seen?:", np.any(Sat_array >= 0))
-        print("num epoch-sat hits:", int(np.sum(Sat_array >= 0)))
-
-        P2 = _DATA_POS['P2']; L2 = _DATA_POS['L2']
-        P1 = _DATA_POS['P1']; L1 = _DATA_POS['L1']
-
-        hits = 0
-        for ti in range(Sat_array.shape[0]):
-            for sat in range(Sat_array.shape[1]):
-                s = Sat_array[ti, sat]
-                if s < 0:
-                    continue
-                if (obs_data[ti, s, P1] != BAD_DATA_CODE and
-                    obs_data[ti, s, L1] != BAD_DATA_CODE and
-                    obs_data[ti, s, P2] != BAD_DATA_CODE and
-                    obs_data[ti, s, L2] != BAD_DATA_CODE):
-                    hits += 1
-
-        print("dual-freq (P1/L1/P2/L2) points:", hits)
-        # ---- END DEBUG ----
-
-        #perform the bias corrections
-        #bias_valid = DCB_bias_correction(MJD,
-                                         #Sat_array,
-                                         #obs_data,
-                                         #station_code,
-                                         #get_station_base_observations.bias_IONEX,
-                                         #get_station_base_observations.bias_CODE_monthly,
-                                         #get_station_base_observations.bias_CODE_C1_monthly,
-                                         #raise_bias_error
-                                         #)
 
         # perform the bias corrections
         if use_external_dcb_files:
@@ -3933,16 +3761,16 @@ def get_station_base_observations(MJD_start,
                                             raise_bias_error
                                             )
         else:
-            # Fallback: estimate and apply local bias from this RINEX file only
+            # Experimental relative code/phase leveling. This does not create
+            # an absolute station DCB, so sta_bias_valid remains false.
             if estimate_local_dcb_if_missing:
                 _local_bias = estimate_and_apply_local_code_bias(MJD, Sat_array, obs_data, station_code)
                 if len(_local_bias) == 0:
-                    print("[LOCAL-DCB] WARNING: No satellites had enough P/L data to estimate bias. "
+                    print("[LOCAL-LEVELING] WARNING: No satellites had enough P/L data to estimate an offset. "
                     "Check that L1/L2 and P1/P2(or C1) exist in this RINEX.")
 
-                print(f"[LOCAL-DCB] Applied local bias to {len(_local_bias)} GPS sats (per-sat constants).")
-                # mark GPS as "valid" because we corrected locally; other constellations unchanged
-                bias_valid = np.zeros((MAX_POSSIBLE_SATELLITES//100), dtype='int32') + 1
+                print(f"[LOCAL-LEVELING] Applied relative offsets to {len(_local_bias)} GPS sats.")
+                bias_valid = np.zeros((MAX_POSSIBLE_SATELLITES//100), dtype='int32')
             else:
                 bias_valid = np.zeros((MAX_POSSIBLE_SATELLITES//100), dtype='int32')
 
@@ -4594,11 +4422,31 @@ def get_station_base_observations_with_bin(MJD_start,
                                            output_directory = ".",
                                            overwrite = 0,
                                            use_bin_files=0,
-                                           raise_bias_error=1,
+                                           raise_bias_error=0,
                                            local_rinex_obs_file=None,
                                            use_external_dcb_files=1,
                                            estimate_local_dcb_if_missing=0
                                            ):
+
+    # Legacy .bin names contain only station and MJD range, although the
+    # corrected arrays also depend on their RINEX source and DCB mode. Bypass
+    # those caches whenever a new option makes the legacy key ambiguous.
+    override_active = (
+        use_external_dcb_files
+        and station_dcb_override.has_override(station_code)
+    )
+    incompatible_cache = (
+        local_rinex_obs_file is not None
+        or not use_external_dcb_files
+        or override_active
+    )
+    if use_bin_files and incompatible_cache:
+        print(
+            "ALBUS RINEX: bypassing legacy .bin cache for '%s' because "
+            "the requested RINEX/DCB configuration is not represented "
+            "in the cache key" % station_code
+        )
+        use_bin_files = 0
 
     if(use_bin_files):
         sta_MJD = _read_Albus_MJD(MJD_start, MJD_end, station_code,
@@ -4750,7 +4598,7 @@ def get_single_station_base_observations(MJD_start,
                                          overwrite = 0,
                                          use_bin_files = 0,
                                          compute_AzEl = 0,
-                                         raise_bias_error = 1,
+                                         raise_bias_error = 0,
                                          local_rinex_obs_file=None,
                                          use_external_dcb_files=1,
                                          estimate_local_dcb_if_missing=0
@@ -4895,7 +4743,7 @@ def get_multiple_station_base_observations(MJD_start,
                                             overwrite=0,
                                             use_bin_files=0,
                                             compute_AzEl=0,
-                                            raise_bias_error=1,
+                                            raise_bias_error=0,
                                             local_rinex_obs_file=None,
                                             use_external_dcb_files=1,
                                             estimate_local_dcb_if_missing=0):

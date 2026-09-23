@@ -28,7 +28,10 @@ import time as systime
 import subprocess
 from subprocess import Popen, PIPE
 
-import requests
+try:
+  import requests
+except ImportError:
+  requests = None
 
 ################################################################################
 # JMA's ionosphere stuff
@@ -70,6 +73,9 @@ IONOSPHERE_KB = 2.79924925E10   # s^{-1} T^{-1}
 DEFAULT_TIMEOUT = 150
 # program name to get stuff
 URL_GETTER = "Albus_RINEX_download.py"
+CODE_HTTP_BASE = "https://www.aiub.unibe.ch/download/CODE"
+CODE_HTTP_DIRECT_BASE = "https://download.aiub.unibe.ch/CODE"
+CODE_FTP_BASE = "ftp://ftp.aiub.unibe.ch/CODE"
 # program name to get ftp stuff by password access
 FTP_GETTER = "Albus_RINEX_userftp.py"
 FTP_GETTER_ALLOW = True
@@ -893,11 +899,21 @@ return_code       O  Status of getting file from web
         # CODE, Switzerland
         data_file = ephemeris_filename.upper()
         if gps_week < 2238:
-          site_str = "ftp://ftp.aiub.unibe.ch/CODE/%4.4d/%s.Z"%(year, data_file)
+          site_str = "%s/%4.4d/%s.Z"%(CODE_HTTP_BASE, year, data_file)
         else:
-          site_str = "ftp://ftp.aiub.unibe.ch/CODE/%4.4d/%s.gz"%(year, data_file)
+          site_str = "%s/%4.4d/%s.gz"%(CODE_HTTP_BASE, year, data_file)
         if DEBUG_SET: 
-           print('we should be using CODE site string:', site_str)
+           print('we should be using CODE HTTPS site string:', site_str)
+    elif(FTP_site == 2):
+        # CODE FTP fallback for legacy deployments.  The public CODE tree is
+        # currently served from the HTTPS/S3 mirror above.
+        data_file = ephemeris_filename.upper()
+        if gps_week < 2238:
+          site_str = "%s/%4.4d/%s.Z"%(CODE_FTP_BASE, year, data_file)
+        else:
+          site_str = "%s/%4.4d/%s.gz"%(CODE_FTP_BASE, year, data_file)
+        if DEBUG_SET:
+           print('we should be using CODE FTP fallback site string:', site_str)
     else:
         return -1
         raise KeyError("Unknown ephemeris FTP site")
@@ -967,14 +983,15 @@ return_code       O  Status of getting file from web
         else:
             return 0
     # Third, check for a compressed file
-    our_Z_file = output_directory + '/' + IONEX_filename + ".Z"
-    if(os.path.isfile(our_Z_file)):
-        if(overwrite):
-            warnings.warn("File '%s' already exists.  Deleting."%our_Z_file)
-            os.remove(our_Z_file)
-        else:
-            gunzip_some_file(our_Z_file,our_file)
-            return 0
+    for suffix in (".gz", ".Z"):
+        our_Z_file = output_directory + '/' + IONEX_filename + suffix
+        if(os.path.isfile(our_Z_file)):
+            if(overwrite):
+                warnings.warn("File '%s' already exists.  Deleting."%our_Z_file)
+                os.remove(our_Z_file)
+            else:
+                gunzip_some_file(our_Z_file,our_file)
+                return 0
     # Fourth, check that the file is not in our missing list
     if GPS_stations.check_for_missing(IONEX_filename):
         warnings.warn("Warning: data %s is in the missing data list"%(IONEX_filename))
@@ -984,24 +1001,45 @@ return_code       O  Status of getting file from web
     assert(year < 2080)
     yy = year - 1900
     if(year >= 2000): yy = year - 2000
-    if(FTP_site == 0): # cddis replaced by CODE
-        # CODE, Switzerland
-        data_file = IONEX_filename.upper()
-        site_str = "ftp://ftp.aiub.unibe.ch/CODE/%4.4d/%s.gz"%(year, data_file)
+    data_file = IONEX_filename.upper()
+    if(FTP_site == 0):
+        # CODE, Switzerland HTTPS/S3 mirror.  The historical FTP CODE tree no
+        # longer exposes the year directories reliably.
+        site_str = "%s/%4.4d/%s.gz"%(CODE_HTTP_BASE, year, data_file)
         our_Z_file = output_directory + '/' + data_file + ".gz"
     elif(FTP_site == 1):
-        # CODE, Switzerland
-        data_file = IONEX_filename.upper()
-        site_str = "ftp://ftp.aiub.unibe.ch/CODE/%4.4d/%s.Z"%(year, data_file)
+        site_str = "%s/%4.4d/%s.Z"%(CODE_HTTP_BASE, year, data_file)
         our_Z_file = output_directory + '/' + data_file + ".Z"
     elif(FTP_site == 2):
-        # CODE, Switzerland rapid file
-        data_file = IONEX_filename.upper()
-        site_str = "ftp://ftp.aiub.unibe.ch/CODE/%s.Z"%(data_file)
+        site_str = "%s/%4.4d/%s.gz"%(CODE_HTTP_DIRECT_BASE, year, data_file)
         our_Z_file = output_directory + '/' + data_file + ".gz"
     elif(FTP_site == 3):
+        site_str = "%s/%4.4d/%s.Z"%(CODE_HTTP_DIRECT_BASE, year, data_file)
+        our_Z_file = output_directory + '/' + data_file + ".Z"
+    elif(FTP_site == 4):
+        # Legacy FTP fallback.
+        site_str = "%s/%4.4d/%s.gz"%(CODE_FTP_BASE, year, data_file)
+        our_Z_file = output_directory + '/' + data_file + ".gz"
+    elif(FTP_site == 5):
+        site_str = "%s/%4.4d/%s.Z"%(CODE_FTP_BASE, year, data_file)
+        our_Z_file = output_directory + '/' + data_file + ".Z"
+    elif(FTP_site == 6):
+        # CODE root products, used for some current rapid/ultra-rapid files.
+        site_str = "%s/%s.gz"%(CODE_HTTP_BASE, data_file)
+        our_Z_file = output_directory + '/' + data_file + ".gz"
+    elif(FTP_site == 7):
+        site_str = "%s/%s.Z"%(CODE_HTTP_BASE, data_file)
+        our_Z_file = output_directory + '/' + data_file + ".Z"
+    elif(FTP_site == 8):
+        site_str = "%s/%s.gz"%(CODE_FTP_BASE, data_file)
+        our_Z_file = output_directory + '/' + data_file + ".gz"
+    elif(FTP_site == 9):
+        site_str = "%s/%s.Z"%(CODE_FTP_BASE, data_file)
+        our_Z_file = output_directory + '/' + data_file + ".Z"
+    elif(FTP_site == 10):
         # IGN France
         site_str = "ftp://igs.ensg.ign.fr/pub/igs/products/ionosphere/%4.4d/%3.3d/%s.Z"%(year, doy, IONEX_filename)
+        our_Z_file = output_directory + '/' + IONEX_filename + ".Z"
     else:
         raise KeyError("Unknown IONEX FTP site")
     try:
@@ -1027,7 +1065,8 @@ return_code       O  Status of getting file from web
 ################################################################################
 def get_CODE_P1P2_file_from_web(year, month, data_type = 'P2',
                                 output_directory = ".",
-                                overwrite = 0
+                                overwrite = 0,
+                                max_months_back = 3
                                 ):
     """use urllib3 to get a P1P2 differential code bias file from CODE
 
@@ -1037,6 +1076,11 @@ data_type         I  Two letter code for which data type to get
                      should be 'P2' or 'C1'
 output_directory  I  Where to put things
 overwrite         I  May files be overwritten?  0 No, else yes
+max_months_back   I  How many earlier months to try before giving up.
+                     The AIUB FTP archive no longer hosts these files, so
+                     without a cap this would retry month by month back
+                     to 1997.  Satellite DCBs come from the IONEX header
+                     anyway, so giving up quickly is safe.
 
 
 OUTPUTS:  P1P2_filename
@@ -1078,7 +1122,7 @@ P1P2_filename     O  The path+name of the P1P2 differential code bias file.
             gunzip_some_file(our_Z_file,our_file)
             return our_file
     # Where are we getting this from?  CODE
-    site_str = "ftp://ftp.aiub.unibe.ch/CODE/%4.4d/%s.Z"%(year, filename)
+    site_str = "%s/%4.4d/%s.Z"%(CODE_HTTP_BASE, year, filename)
     try:
         # note - even P2 files from early years, e,g, 2002, can be small
         if(data_type == 'P2'):
@@ -1087,14 +1131,18 @@ P1P2_filename     O  The path+name of the P1P2 differential code bias file.
             # data file may be tiny
             get_url(site_str, our_Z_file,450)
     except IOError:
-        # Failure.  Try an earlier month
+        # Failure.  Try an earlier month, up to max_months_back
+        if(max_months_back <= 0):
+            warnings.warn("Giving up on CODE %s DCB file after retry cap; satellite DCBs will come from the IONEX header"%data_type)
+            return None
         month -= 1
         if(month <= 0):
             month = 12
             year -= 1
         return get_CODE_P1P2_file_from_web(year, month, data_type,
                                            output_directory,
-                                           overwrite)
+                                           overwrite,
+                                           max_months_back - 1)
     # uncompress
     gunzip_some_file(our_Z_file,our_file)
     return our_file
@@ -2777,6 +2825,3 @@ OUTPUTS: None
     finally:
         fp.close()
     return
-
-
-

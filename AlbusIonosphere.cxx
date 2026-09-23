@@ -18,7 +18,7 @@ void printIntArray(char label[], int *ptr, size_t start_length, size_t length)
     //for statment to print values using array             
     printf("%s ", label);        
     size_t i = 0;
-    for( ; i < start_length; ++i )      s
+    for( ; i < start_length; ++i )      
       printf(" %d", ptr[i]);        
     printf(" ... ");        
     for(i=length-start_length ; i < length; ++i )      

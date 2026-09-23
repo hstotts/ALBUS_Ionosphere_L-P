@@ -435,7 +435,7 @@ parser.add_argument("endyear", type=int, help="Provide ending year for lookup")
 parser.add_argument("--potsdam", type=str, help="URL for Potsdam yearly", default="ftp://ftp.gfz-potsdam.de/pub/home/obs/kp-ap/wdc/yearly/")
 parser.add_argument("--potsdam-current", type=str, help="URL for  the current Potsdam collated information. This table seems to have F10.7 fluxes and International Sunspot numbers",
                     default="https://www-app3.gfz-potsdam.de/kp_index/Kp_ap_Ap_SN_F107_since_1932.txt")
-parser.add_argument("--ottawa", type=str, help="URL for Ottawa F10.7 numbers", default="ftp://ftp.seismo.nrcan.gc.ca/spaceweather/solar_flux/daily_flux_values/fluxtable.txt")
+parser.add_argument("--ottawa", type=str, help="URL for Ottawa F10.7 numbers", default="https://www.spaceweather.gc.ca/solar_flux_data/daily_flux_values/fluxtable.txt")
 parser.add_argument("--kpffile", type=str, help="kpf107 file to append with new data (will not overwrite file)", default="kpf107.dat")
 parser.add_argument("--cachedir", type=str, help="Cache directory for downloaded files", default=DEFAULT_CACHE_DIR) # make sure this is in gitignore and dockerignore...
 parser.add_argument("--clearcache", help="Remove cached files before running", action='store_true', default=False) # make sure this is in gitignore and dockerignore...
