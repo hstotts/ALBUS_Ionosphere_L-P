@@ -75,6 +75,63 @@ native Python extension for the host platform.
 | Native Windows | **Not currently supported or verified by this branch.** The same source checkout should not be expected to build or run natively on Windows without additional porting. |
 | Windows with WSL2 | WSL2 can use the future native-Linux pip procedure and is the lowest-risk Windows route. It is not a substitute for a native Windows wheel and has not yet been validated for this release. |
 
+### Reproducing this branch's station-DCB results on Windows
+
+The native-build warning above applies to this complete macOS branch. It does
+not prevent the platform-neutral station-DCB feature from being added to an
+ALBUS checkout that already builds and runs on Windows. The recommended
+Windows starting point is the current working
+[`ratt-ru/ALBUS_ionosphere`](https://github.com/ratt-ru/ALBUS_ionosphere)
+checkout; do not replace it with this complete macOS tree.
+
+To reproduce the calibrated station-DCB processing path, add or merge these
+files from this branch into the Windows checkout:
+
+1. Add `ALBUS_ionosphere/Python/station_dcb_override.py` in full.
+2. Merge the result-producing changes from
+   `ALBUS_ionosphere/Python/Albus_RINEX_2.py`. These include the override
+   import and application, override/local-input cache bypass, one-day local
+   RINEX support, native 10-second sampling, fixed-width RINEX 2 observation
+   parsing, deferred `ANTENNA: DELTA H/E/N` handling, and the explicit
+   missing-DCB error check. Do not replace the complete upstream file without
+   reviewing its newer Windows changes.
+3. Add `station_dcb_override.py` to `SRCS` and `MODULES` in
+   `ALBUS_ionosphere/Python/CMakeLists.txt` so `pip install .` installs it.
+4. Supply the same calibration CSV used for the reference run. It must contain
+   `station`, `date`, and either `dcb_cal_ns` or `dcb_ns` as described below.
+
+The current local-file campaign scripts also use `ALBUS_LOCAL_RINEX` and
+`ALBUS_LOCAL_STATION`. If that workflow is required, port only a cleaned-up
+local-file/station selection hook from `MS_Iono_functions.py` that passes the
+local filename into `Albus_RINEX_2`. Do not copy the complete development
+version of `MS_Iono_functions.py`, which contains campaign-specific diagnostics
+and station defaults. This extra hook is not required when the Windows run
+uses ALBUS's normal station selection and RINEX download path.
+
+For the same final numerical result, code alone is not sufficient. Use the
+same RINEX observation file, station-DCB CSV, IONEX product, SP3/orbit product,
+processing dates and options. For PIM calculations covering the 2025--2026
+campaign, also update both model-input files from this branch:
+
+- `ALBUS_ionosphere/FORTRAN/PIM/PIM_1.7/noaa_dat/IMF24.dat`
+- `ALBUS_ionosphere/FORTRAN/PIM/PIM_1.7/noaa_dat/kpf107.dat`
+
+Keep the Windows repository's native-build files, `GPS_stations.py`, and
+download implementation unless a separate Windows-specific fix is required.
+In particular, do not copy the macOS compiler paths, GFZRNX signing wrapper,
+virtual environment, build directory, `.DS_Store` files, local `run.txt`, or
+files containing absolute `/Users/...` paths.
+
+Add the following source-only regression tests as part of the Windows feature
+merge, but do not install them as runtime modules:
+
+- `ALBUS_ionosphere/Python/test_station_dcb_override.py`
+- `ALBUS_ionosphere/Python/test_rinex2_fixed_width.py`
+
+Passing these tests plus one end-to-end run using the same input products is
+the acceptance check for equivalent station-DCB results. Small last-digit
+floating-point differences between compiler platforms may still occur.
+
 ### Supported distribution method
 
 The supported build direction for this branch is the PEP 517 pip workflow:
@@ -166,6 +223,21 @@ export ALBUS_STATION_DCB_CSV=/absolute/path/to/station_dcb.csv
 export ALBUS_STATION_DCB_MODE=daily
 ```
 
+In Windows PowerShell, set the same options as follows:
+
+```powershell
+$env:ALBUS_STATION_DCB_CSV = "C:\path\to\station_dcb.csv"
+$env:ALBUS_STATION_DCB_MODE = "daily"
+```
+
+For an explicitly selected local RINEX file, the cleaned-up Windows integration
+described above may additionally use:
+
+```powershell
+$env:ALBUS_LOCAL_RINEX = "C:\path\to\mk012300.25o"
+$env:ALBUS_LOCAL_STATION = "MK01"
+```
+
 `ALBUS_STATION_DCB_MODE` accepts two values:
 
 - `campaign-mean` (the default) uses the mean of all rows for each station;
@@ -184,6 +256,13 @@ them before the next call:
 
 ```bash
 unset ALBUS_STATION_DCB_CSV ALBUS_STATION_DCB_MODE
+```
+
+In PowerShell:
+
+```powershell
+Remove-Item Env:ALBUS_STATION_DCB_CSV -ErrorAction SilentlyContinue
+Remove-Item Env:ALBUS_STATION_DCB_MODE -ErrorAction SilentlyContinue
 ```
 
 The source-release regression tests are
